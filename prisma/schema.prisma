@@ -1,0 +1,159 @@
+// 考研工作台数据模型
+// 日期字段统一用 'YYYY-MM-DD' 本地字符串,避免时区混乱
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  nickname     String?
+  examDate     DateTime? // 考研日(倒计时)
+  targetSchool String? // 目标院校
+  targetMajor  String? // 目标专业
+  createdAt    DateTime  @default(now())
+
+  tasks         Task[]
+  habits        Habit[]
+  habitLogs     HabitLog[]
+  focusSessions FocusSession[]
+  mockExams     MockExam[]
+  phases        Phase[]
+  mistakes      Mistake[]
+  aiUsages      AiUsage[]
+  aiReports     AiReport[]
+  sessions      Session[]
+}
+
+// AI 周报记录:每周一条,后台生成,支持历史回看
+model AiReport {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart String // 周一的日期 'YYYY-MM-DD'
+  status    String // 'pending' | 'done' | 'error'
+  report    String?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, weekStart])
+}
+
+model AiUsage {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature String // 'report' | 'ocr'
+  date    String // 'YYYY-MM-DD'
+  count   Int    @default(0) // 已消耗次数
+  extra   Int    @default(0) // 当日额外解锁次数(如看激励视频获取)
+
+  @@unique([userId, feature, date])
+}
+
+model Session {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Phase {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String // 如"基础期"
+  startDate String // 'YYYY-MM-DD'
+  endDate   String
+  color     String? // 展示色(十六进制)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Mistake {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String // 科目:政治/英语/数学/专业课
+  chapter   String? // 章节/知识点
+  reason    String // 错因:知识性错误/粗心失误/时间不足
+  question  String // 题干(文字)
+  solution  String? // 正确解法/笔记
+  createdAt DateTime @default(now())
+
+  @@index([userId, subject])
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  subject   String? // 科目
+  planDate  String // 'YYYY-MM-DD' 本地日期
+  pomodoros Int      @default(1) // 预计番茄数
+  done      Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, planDate])
+}
+
+model Habit {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime   @default(now())
+
+  logs HabitLog[]
+}
+
+model HabitLog {
+  id      String @id @default(cuid())
+  habitId String
+  habit   Habit  @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date    String // 'YYYY-MM-DD'
+
+  @@unique([habitId, date])
+}
+
+model FocusSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String? // 关联的今日任务(可选)
+  subject     String?
+  durationMin Int
+  startedAt   DateTime @default(now())
+
+  @@index([userId, startedAt])
+}
+
+model MockExam {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examDate  String // 'YYYY-MM-DD'
+  name      String // 如"2023年英语真题"
+  subject   String // 政治/英语/数学/专业课
+  score     Int // 得分
+  total     Int      @default(150) // 满分
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, subject])
+}
